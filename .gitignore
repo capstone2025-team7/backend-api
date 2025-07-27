@@ -26,7 +26,7 @@ Desktop.ini
 application-local.yml
 application-dev.yml
 application-prod.yml
-.yml
+*.yml
 .env
 .env.*
 
