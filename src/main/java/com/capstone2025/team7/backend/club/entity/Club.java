@@ -1,5 +1,6 @@
 package com.capstone2025.team7.backend.club.entity;
 
+import com.capstone2025.team7.backend.auditable.Auditable;
 import com.capstone2025.team7.backend.category.entity.Category;
 import jakarta.persistence.*;
 import lombok.*;
@@ -12,7 +13,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Club {
+public class Club extends Auditable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -41,9 +42,6 @@ public class Club {
 
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = false;
-
-    @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt;
 
 
     public enum Location {
