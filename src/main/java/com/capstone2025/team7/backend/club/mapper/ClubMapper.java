@@ -16,7 +16,7 @@ public interface ClubMapper {
     @Mapping(target = "category", source = "category") // category는 controller/service에서 조회해서 주입해야 함
     @Mapping(target = "clubCurrentPopulation", constant = "0")
     @Mapping(target = "isActive", constant = "true")
-    @Mapping(target = "createdAt", expression = "java(java.time.LocalDateTime.now())")
+    //@Mapping(target = "createdAt", expression = "java(java.time.LocalDateTime.now())")
     Club postToClub(ClubDto.Post dto, Category category);
 
     // Entity → Response DTO
