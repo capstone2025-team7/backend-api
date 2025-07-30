@@ -6,6 +6,7 @@ import com.capstone2025.team7.backend.club.dto.ClubDto;
 import com.capstone2025.team7.backend.club.entity.Club;
 import com.capstone2025.team7.backend.club.mapper.ClubMapper;
 import com.capstone2025.team7.backend.club.repository.ClubRepository;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -57,18 +58,30 @@ public class ClubService {
         return clubMapper.clubToResponse(club);
     }
 
-//
-//
-//
-//    public ClubDto.Response updateClub(ClubDto.Patch patchDto) {
-//        Club club = clubRepository.findById(patchDto.getClubId())
-//                .orElseThrow(() -> new IllegalArgumentException("해당 동호회가 존재하지 않습니다."));
-//
-//        clubMapper.updateClubFromPatch(patchDto, club);
-//        Club updatedClub = clubRepository.save(club);
-//
-//        return clubMapper.clubToResponse(updatedClub);
-//    }
+
+
+
+    @Transactional
+    public ClubDto.Response updateClub(Long clubId, ClubDto.Patch patchDto) {
+        Club existingClub = clubRepository.findById(clubId)
+                .orElseThrow(() -> new EntityNotFoundException("클럽을 찾을 수 없습니다."));
+
+        // 카테고리 변경이 있는 경우
+        if (patchDto.getCategoryId() != null &&
+                !patchDto.getCategoryId().equals(existingClub.getCategory().getCategoryId())) {
+
+            Category newCategory = categoryRepository.findById(patchDto.getCategoryId())
+                    .orElseThrow(() -> new EntityNotFoundException("카테고리를 찾을 수 없습니다."));
+
+            clubMapper.updateClubFromPatch(patchDto, newCategory, existingClub);
+        } else {
+            // 카테고리 변경이 없는 경우
+            clubMapper.updateClubFromPatch(patchDto, existingClub);
+        }
+
+        Club updatedClub = clubRepository.save(existingClub);
+        return clubMapper.clubToResponse(updatedClub);
+    }
 
     /**
      * 동호회 삭제

@@ -20,11 +20,11 @@ public class UserClubDto {
         @NotNull
         private String nickname;
 
-//        public User getUser(){
-//            User user = new User();
-//            user.setUserId(userId);
-//            return user;
-//        }
+        public User getUser(){
+            User user = new User();
+            user.setUserId(userId);
+            return user;
+        }
 
 
         public Club getClub() {
@@ -42,6 +42,7 @@ public class UserClubDto {
         private long userId;
         private String nickname;
         private String clubName;
+        private long age;
     }
 
 }

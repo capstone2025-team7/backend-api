@@ -1,5 +1,6 @@
 package com.capstone2025.team7.backend.category.entity;
 
+import com.capstone2025.team7.backend.auditable.Auditable;
 import com.capstone2025.team7.backend.categoryGroup.entity.CategoryGroup;
 import com.capstone2025.team7.backend.club.entity.Club;
 import jakarta.persistence.*;
@@ -14,7 +15,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Category {
+public class Category extends Auditable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
