@@ -1,6 +1,6 @@
 package com.capstone2025.team7.backend.user.entity;
 
-import com.capstone2025.team7.backend.audit.Auditable;
+import com.capstone2025.team7.backend.auditable.Auditable;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
