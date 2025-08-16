@@ -1,10 +1,14 @@
 package com.capstone2025.team7.backend.user.entity;
 
 import com.capstone2025.team7.backend.auditable.Auditable;
+import com.capstone2025.team7.backend.userClub.entity.UserClub;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity(name = "user")
 @Getter
@@ -42,6 +46,15 @@ public class User extends Auditable {
     @Column(name = "role", length = 20, nullable = false)
     private userRole role = userRole.MEMBER;
 
+    @OneToMany(mappedBy = "user", cascade = CascadeType.PERSIST)
+    List<UserClub> userClubList = new ArrayList<>();
+
+    public void addUserClub(UserClub userClub){
+        this.userClubList.add(userClub);
+        if(userClub.getUser() != this){
+            userClub.addUser(this);
+        }
+    }
 
     @Getter
     public enum gender {
