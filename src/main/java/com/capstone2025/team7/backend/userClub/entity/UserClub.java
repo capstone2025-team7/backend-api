@@ -26,4 +26,11 @@ public class UserClub extends Auditable {
     @ManyToOne
     @JoinColumn(name = "CLUB_ID")
     private Club club;
+
+    public void addUser(User user){
+        this.user = user;
+        if(!this.user.getUserClubList().contains(this)){
+            this.user.addUserClub(this);
+        }
+    }
 }

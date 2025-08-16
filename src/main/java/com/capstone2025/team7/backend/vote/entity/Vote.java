@@ -8,6 +8,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.LocalDateTime;
+
 @Entity
 @NoArgsConstructor
 @AllArgsConstructor
@@ -25,5 +27,27 @@ public class Vote extends Auditable {
 
     @Column(name = "descriptions", length = 50, nullable = false)
     private String descriptions;
+
+    @Column(nullable = false)
+    private LocalDateTime startDate;
+
+    @Column(nullable = false)
+    private LocalDateTime dueDate;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private VoteStatus voteStatus = VoteStatus.VOTE_STATUS_ACTIVE;
+
+    public enum VoteStatus {
+        VOTE_STATUS_ACTIVE("활성"),
+        VOTE_STATUS_COMPLETE("종료");
+
+        @Getter
+        private String status;
+
+        VoteStatus(String status){
+            this.status = status;
+        }
+    }
 
 }
