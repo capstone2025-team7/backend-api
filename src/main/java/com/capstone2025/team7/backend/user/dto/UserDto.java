@@ -9,6 +9,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.util.List;
+
 public class UserDto {
     @Getter
     @Setter
@@ -34,6 +36,8 @@ public class UserDto {
 
         @Email
         private String email;
+
+        private List<String> availableDays;
     }
 
     @Getter
