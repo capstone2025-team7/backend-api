@@ -7,7 +7,7 @@ import com.capstone2025.team7.backend.user.entity.User;
 import com.capstone2025.team7.backend.user.entity.UserAvailableDay;
 import com.capstone2025.team7.backend.user.repository.UserAvailableDayRepository;
 import com.capstone2025.team7.backend.user.repository.UserRepository;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -38,8 +38,12 @@ public class UserService {
         // 1. 사용자 먼저 저장
         User user = new User();
         user.setName(request.getName());
+        user.setNickname(request.getNickname());
+        user.setPassword(request.getPassword());
+        user.setProfileImage(request.getProfileImage());
+        user.setAge(request.getAge());
+        user.setGender(request.getGender());
         user.setEmail(request.getEmail());
-        // ... 기타 필드 설정
 
         User savedUser = userRepository.save(user);
 
@@ -79,6 +83,25 @@ public class UserService {
                 new BusinessLogicException(ExceptionCode.USER_NOT_FOUND));
     }
 
+    /**
+     * 사용자의 가능한 요일들 업데이트
+     */
+    public void updateUserAvailableDays(Long userId, List<String> availableDays) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+
+        // 기존 가능 요일들 삭제
+        availableDayRepository.deleteByUserId(userId);
+
+        // 새로운 가능 요일들 저장
+        if (availableDays != null && !availableDays.isEmpty()) {
+            saveUserAvailableDays(user, availableDays);
+        }
+    }
+
+    /**
+     * 가능한 요일들 저장 (내부 메서드)
+     */
     private void saveUserAvailableDays(User user, List<String> availableDays) {
         List<UserAvailableDay> userAvailableDays = availableDays.stream()
                 .map(day -> {
@@ -92,5 +115,52 @@ public class UserService {
                 .collect(Collectors.toList());
 
         availableDayRepository.saveAll(userAvailableDays);
+    }
+
+    /**
+     * 사용자의 가능한 요일들 조회
+     */
+    @Transactional(readOnly = true)
+    public List<String> getUserAvailableDays(Long userId) {
+        return availableDayRepository.findByUser_UserId(userId)
+                .stream()
+                .map(availableDay -> availableDay.getDayOfWeek().name())
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 사용자의 가능한 요일들 조회 (한글명)
+     */
+    @Transactional(readOnly = true)
+    public List<String> getUserAvailableDaysInKorean(Long userId) {
+        return availableDayRepository.findByUser_UserId(userId)
+                .stream()
+                .map(availableDay -> availableDay.getDayOfWeek().getKoreanName())
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 특정 요일들에 모두 가능한 사용자들 조회
+     */
+    @Transactional(readOnly = true)
+    public List<User> getUsersAvailableOnDays(List<String> days) {
+        List<UserAvailableDay.DayOfWeek> dayOfWeeks = days.stream()
+                .map(day -> UserAvailableDay.DayOfWeek.valueOf(day.toUpperCase()))
+                .collect(Collectors.toList());
+
+        return availableDayRepository.findUsersAvailableOnAllDays(dayOfWeeks, dayOfWeeks.size());
+    }
+
+    /**
+     * 사용자가 특정 요일에 가능한지 확인
+     */
+    @Transactional(readOnly = true)
+    public boolean isUserAvailableOnDay(Long userId, String day) {
+        try {
+            UserAvailableDay.DayOfWeek dayOfWeek = UserAvailableDay.DayOfWeek.valueOf(day.toUpperCase());
+            return availableDayRepository.existsByUser_UserIdAndDayOfWeek(userId, dayOfWeek);
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
     }
 }

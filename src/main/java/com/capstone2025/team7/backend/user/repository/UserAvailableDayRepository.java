@@ -14,10 +14,10 @@ import java.util.List;
 public interface UserAvailableDayRepository extends JpaRepository<UserAvailableDay, Long> {
 
     // 특정 사용자의 가능한 요일들 조회
-    List<UserAvailableDay> findByUserId(Long userId);
+    List<UserAvailableDay> findByUser_UserId(Long userId);
 
     // 특정 사용자의 특정 요일 조회
-    UserAvailableDay findByUserIdAndDayOfWeek(Long userId, UserAvailableDay.DayOfWeek dayOfWeek);
+    UserAvailableDay findByUser_UserIdAndDayOfWeek(Long userId, UserAvailableDay.DayOfWeek dayOfWeek);
 
     // 특정 요일에 가능한 모든 사용자들 조회
     List<UserAvailableDay> findByDayOfWeek(UserAvailableDay.DayOfWeek dayOfWeek);
@@ -28,7 +28,7 @@ public interface UserAvailableDayRepository extends JpaRepository<UserAvailableD
     void deleteByUserId(@Param("userId") Long userId);
 
     // 특정 사용자가 특정 요일에 가능한지 확인
-    boolean existsByUserIdAndDayOfWeek(Long userId, UserAvailableDay.DayOfWeek dayOfWeek);
+    boolean existsByUser_UserIdAndDayOfWeek(Long userId, UserAvailableDay.DayOfWeek dayOfWeek);
 
     // 여러 요일에 모두 가능한 사용자들 조회
     @Query("SELECT DISTINCT uad.user FROM UserAvailableDay uad " +

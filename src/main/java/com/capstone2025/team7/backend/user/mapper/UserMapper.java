@@ -10,5 +10,5 @@ public interface UserMapper {
 
     User userPatchToUser(UserDto.Patch patch);
 
-    UserDto.Response userToUserResponse(User user);
+    UserDto.UserResponse userToUserResponse(User user);
 }
