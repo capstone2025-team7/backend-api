@@ -29,6 +29,9 @@ public class ClubDto {
         @Range(min = 1, max = 100, message = "최대 인원 수는 1~100명이어야 합니다.")
         private int clubTotalPopulation;
 
+        @Range(min = 1, max = 100, message = "최소 인원 수는 1~100명이어야 합니다.")
+        private int minUser;
+
         @Size(min = 1, max = 200, message = "동호회 소개는 1~200자 이내여야 합니다.")
         private String description;
 
@@ -51,9 +54,14 @@ public class ClubDto {
         private String clubName;
 
         // 최대 인원 수정 (optional) - Integer로 변경하여 null 허용
-        @Min(value = 0, message = "최대 인원 수는 1명 이상이어야 합니다.")
+        @Min(value = 1, message = "최대 인원 수는 1명 이상이어야 합니다.")
         @Max(value = 100, message = "최대 인원 수는 100명 이하여야 합니다.")
         private Integer clubTotalPopulation;
+
+        // 최소 인원 수정 (optional) - Integer로 변경하여 null 허용
+        @Min(value = 1, message = "최대 인원 수는 1명 이상이어야 합니다.")
+        @Max(value = 100, message = "최대 인원 수는 100명 이하여야 합니다.")
+        private Integer minUser;
 
         // 동호회 소개 수정 (optional) - null일 때는 검증 안함
         @Size(min = 1, max = 200, message = "동호회 소개는 1~200자 이내여야 합니다.")
@@ -71,6 +79,7 @@ public class ClubDto {
         private String clubName;
         private int clubTotalPopulation;
         private int clubCurrentPopulation;
+        private int minUser;
         private String description;
         private Location location;
         private Boolean isActive;
@@ -85,6 +94,7 @@ public class ClubDto {
         private String clubName;
         private int clubTotalPopulation;
         private int clubCurrentPopulation;
+        private int minUser;
         private String description;
         private Location location;
         private Boolean isActive;

@@ -2,6 +2,8 @@ package com.capstone2025.team7.backend.user.entity;
 
 import com.capstone2025.team7.backend.auditable.Auditable;
 import com.capstone2025.team7.backend.userClub.entity.UserClub;
+import com.capstone2025.team7.backend.userVote.entity.UserVote;
+import com.capstone2025.team7.backend.vote.entity.Vote;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -49,10 +51,20 @@ public class User extends Auditable {
     @OneToMany(mappedBy = "user", cascade = CascadeType.PERSIST)
     List<UserClub> userClubList = new ArrayList<>();
 
+    @OneToMany(mappedBy = "user", cascade = CascadeType.PERSIST)
+    List<UserVote> userVoteList = new ArrayList<>();
+
     public void addUserClub(UserClub userClub){
         this.userClubList.add(userClub);
         if(userClub.getUser() != this){
             userClub.addUser(this);
+        }
+    }
+
+    public void addUserVote(UserVote userVote){
+        this.userVoteList.add(userVote);
+        if(userVote.getUser() != this){
+            userVote.addUser(this);
         }
     }
 

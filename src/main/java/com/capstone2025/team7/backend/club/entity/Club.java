@@ -2,9 +2,13 @@ package com.capstone2025.team7.backend.club.entity;
 
 import com.capstone2025.team7.backend.auditable.Auditable;
 import com.capstone2025.team7.backend.category.entity.Category;
+import com.capstone2025.team7.backend.userClub.entity.UserClub;
+import com.capstone2025.team7.backend.vote.entity.Vote;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "club")
@@ -12,7 +16,6 @@ import java.time.LocalDateTime;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
 public class Club extends Auditable {
 
     @Id
@@ -33,6 +36,9 @@ public class Club extends Auditable {
     @Column(nullable = false)
     private int clubCurrentPopulation = 0;
 
+    @Column(nullable = false)
+    private int minUser;
+
     @Column(name = "description", nullable = false, columnDefinition = "TEXT")
     private String description;
 
@@ -42,6 +48,19 @@ public class Club extends Auditable {
 
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = false;
+
+    @OneToMany(mappedBy = "club", cascade = CascadeType.ALL)
+    private List<Vote> votes;
+
+    @OneToMany(mappedBy = "club", cascade = CascadeType.PERSIST)
+    List<UserClub> userClubList = new ArrayList<>();
+
+    public void addUserClub(UserClub userClub){
+        this.userClubList.add(userClub);
+        if(userClub.getClub() != this){
+            userClub.addClub(this);
+        }
+    }
 
 
     public enum Location {
