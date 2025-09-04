@@ -2,10 +2,13 @@ package com.capstone2025.team7.backend.userClub.dto;
 
 import com.capstone2025.team7.backend.club.entity.Club;
 import com.capstone2025.team7.backend.user.entity.User;
+import com.capstone2025.team7.backend.userClub.entity.UserClub;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
+
+import java.util.List;
 
 @Getter
 public class UserClubDto {
@@ -43,6 +46,7 @@ public class UserClubDto {
         private String nickname;
         private String clubName;
         private long age;
+        private List<UserClub.UserClubStatus> userClubStatusList;
     }
 
 }

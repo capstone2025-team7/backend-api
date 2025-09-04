@@ -2,6 +2,7 @@ package com.capstone2025.team7.backend.club.controller;
 
 import com.capstone2025.team7.backend.club.dto.ClubDto;
 import com.capstone2025.team7.backend.club.service.ClubService;
+import com.capstone2025.team7.backend.userClub.dto.UserClubDto;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -78,5 +79,60 @@ public class ClubController {
     public ResponseEntity<Void> deleteClub(@PathVariable Long clubId) {
         clubService.deleteClub(clubId);
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * 동호회 가입 신청
+     */
+    @PostMapping("/{clubId}/users")
+    @Operation(summary = "동호회 가입 신청")
+    public ResponseEntity<UserClubDto.Response> joinClub(@Valid @RequestBody UserClubDto.Post postDto) {
+
+        UserClubDto.Response response = clubService.joinClub(postDto);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 동호회 멤버 목록 조회
+     */
+    @GetMapping("/{clubId}/users")
+    @Operation(summary = "동호회 멤버 목록 조회")
+    public ResponseEntity<List<UserClubDto.Response>> getClubMembers(@PathVariable Long clubId) {
+        List<UserClubDto.Response> members = clubService.getClubUsers(clubId);
+        return ResponseEntity.ok(members);
+    }
+
+    /**
+     * 멤버 제거/탈퇴
+     */
+    @DeleteMapping("/{clubId}/users/{userClubId}")
+    @Operation(summary = "멤버 제거/탈퇴")
+    public ResponseEntity<Void> removeUser(
+            @PathVariable Long clubId,
+            @PathVariable Long userClubId,
+            @RequestHeader("User-Id") Long requestUserId) {
+
+        clubService.removeUser(clubId, userClubId, requestUserId);
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * 활성 동호회 목록 조회
+     */
+    @GetMapping("/active")
+    @Operation(summary = "활성 동호회 목록 조회")
+    public ResponseEntity<List<ClubDto.Response>> getActiveClubs() {
+        List<ClubDto.Response> activeClubs = clubService.getActiveClubs();
+        return ResponseEntity.ok(activeClubs);
+    }
+
+    /**
+     * 비활성 동호회 목록 조회
+     */
+    @GetMapping("/inactive")
+    @Operation(summary = "비활성 동호회 목록 조회")
+    public ResponseEntity<List<ClubDto.Response>> getInactiveClubs() {
+        List<ClubDto.Response> inactiveClubs = clubService.getInactiveClubs();
+        return ResponseEntity.ok(inactiveClubs);
     }
 }
