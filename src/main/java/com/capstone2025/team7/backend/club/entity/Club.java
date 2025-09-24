@@ -6,6 +6,8 @@ import com.capstone2025.team7.backend.userClub.entity.UserClub;
 import com.capstone2025.team7.backend.vote.entity.Vote;
 import jakarta.persistence.*;
 import lombok.*;
+
+import java.time.DayOfWeek;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -48,6 +50,14 @@ public class Club extends Auditable {
 
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = false;
+
+    // Club 엔티티에 요일 필드 추가
+    @Enumerated(EnumType.STRING)
+    @Column(name = "activity_day")
+    private DayOfWeek activityDay;
+
+    @Column(name = "parent_club_name")
+    private String parentClubName; // "탁구", "등산" 등
 
     @OneToMany(mappedBy = "club", cascade = CascadeType.ALL)
     private List<Vote> votes;

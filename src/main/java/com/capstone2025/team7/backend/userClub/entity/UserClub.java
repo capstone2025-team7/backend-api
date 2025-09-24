@@ -9,6 +9,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.DayOfWeek;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -18,6 +19,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class UserClub extends Auditable {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private long userClubId;
@@ -30,25 +32,33 @@ public class UserClub extends Auditable {
     @JoinColumn(name = "CLUB_ID")
     private Club club;
 
+    @Column(name = "nickname", length = 50)
+    private String nickname;
+
+    @ElementCollection(fetch = FetchType.LAZY)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "selected_day")
+    private List<DayOfWeek> selectedDays = new ArrayList<>();
+
     @ElementCollection(fetch = FetchType.LAZY)
     @Enumerated(EnumType.STRING)
     private List<UserClubStatus> userClubStatuses = new ArrayList<>();
 
-    public void addUser(User user){
+    public void addUser(User user) {
         this.user = user;
-        if(!this.user.getUserClubList().contains(this)){
-            this.user.addUserClub(this);
+        if (user != null && !user.getUserClubList().contains(this)) {
+            user.addUserClub(this);
         }
     }
 
-    public void addClub(Club club){
+    public void addClub(Club club) {
         this.club = club;
-        if(!this.club.getUserClubList().contains(this)){
-            this.club.addUserClub(this);
+        if (club != null && !club.getUserClubList().contains(this)) {
+            club.addUserClub(this);
         }
     }
 
-    public enum UserClubStatus{
+    public enum UserClubStatus {
         USER_CLUB_STATUS_ACTIVE(1, "활동 회원"),
         USER_CLUB_STATUS_INACTIVE(2, "탈퇴 회원"),
         USER_CLUB_STATUS_WAIT(3, "가입 대기 회원");

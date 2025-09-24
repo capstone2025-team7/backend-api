@@ -14,6 +14,12 @@ import java.util.Optional;
 public interface UserClubRepository extends JpaRepository<UserClub, Long> {
 
     /**
+     * 특정 동호회의 활성 멤버 수 조회
+     */
+    @Query("SELECT COUNT(uc) FROM UserClub uc WHERE uc.club.clubId = :clubId AND :activeStatus MEMBER OF uc.userClubStatuses")
+    Long countActiveMembers(@Param("clubId") Long clubId, @Param("activeStatus") UserClubStatus activeStatus);
+
+    /**
      * 특정 동호회의 모든 멤버 조회
      */
     List<UserClub> findByClub_ClubId(Long clubId);
@@ -38,4 +44,11 @@ public interface UserClubRepository extends JpaRepository<UserClub, Long> {
      */
     @Query("SELECT COUNT(uc) FROM UserClub uc WHERE uc.club.clubId = :clubId AND :waitStatus MEMBER OF uc.userClubStatuses")
     Long countPendingMembers(@Param("clubId") Long clubId, @Param("waitStatus") UserClubStatus waitStatus);
+
+    // --- 추가된 메소드 ---
+
+    /**
+     * 특정 동호회에서 특정 상태를 가진 모든 사용자 목록 조회
+     */
+    List<UserClub> findByClub_ClubIdAndUserClubStatuses(Long clubId, UserClubStatus userClubStatus);
 }
