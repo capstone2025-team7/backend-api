@@ -93,8 +93,11 @@ public class ClubService {
         clubRepository.deleteById(clubId);
     }
 
+    // ClubService.java 내 joinClub 메서드 전체
+
     @Transactional
     public UserClubDto.Response joinClub(UserClubDto.Post postDto) {
+        // 1. 유효성 검사 및 초기 설정
         if (userClubRepository.existsByUser_UserIdAndClub_ClubId(postDto.getUserId(), postDto.getClubId())) {
             throw new RuntimeException("Already applied to this club");
         }
@@ -107,76 +110,67 @@ public class ClubService {
                 .map(this::convertStringToDayOfWeek)
                 .collect(Collectors.toList());
 
-        UserClub resultUserClub = null;
-        DayOfWeek activeJoinedDay = null; // 실제로 ACTIVE 가입에 성공한 요일
+        List<DayOfWeek> daysSuccessfullyJoined = new ArrayList<>();
+        UserClub finalReturnEntry = null;
 
-        List<DayOfWeek> pendingDays = new ArrayList<>(selectedDays); // 남은 요일을 관리할 리스트
-
-        // 1. ACTIVE 클럽에 즉시 가입 가능한지 확인
+        // 2. 모든 selectedDays를 순회하며 ACTIVE 클럽이 있는지 확인하고 모두 가입 처리
         for (DayOfWeek day : selectedDays) {
-            if (activeJoinedDay != null) {
-                // 이미 한 곳에 가입했다면 더 이상 ACTIVE 가입 시도 안함
-                break;
-            }
-
             Optional<Club> optionalExistingDayClub = clubRepository.findByParentClubNameAndActivityDayAndIsActive(
                     originalClub.getClubName(), day, true);
 
             if (optionalExistingDayClub.isPresent()) {
                 Club existingDayClub = optionalExistingDayClub.get();
 
+                // 동호회가 꽉 차지 않았는지 확인
                 if (existingDayClub.getClubCurrentPopulation() < existingDayClub.getClubTotalPopulation()) {
 
-                    // 2. Active UserClub 생성 (성공한 요일만 포함)
+                    // --- Multi-Join Logic: 성공한 요일마다 새로운 UserClub 생성 ---
                     UserClub activeUserClub = new UserClub();
                     activeUserClub.setUser(user);
-                    activeUserClub.setClub(existingDayClub);
+                    activeUserClub.setClub(existingDayClub); // Link to the specific day club (Tuesday/Friday)
                     activeUserClub.setNickname(postDto.getNickname());
-                    activeUserClub.setSelectedDays(List.of(day)); // 가입된 요일만 포함
+                    activeUserClub.setSelectedDays(List.of(day)); // Only the specific day
                     activeUserClub.getUserClubStatuses().add(UserClub.UserClubStatus.USER_CLUB_STATUS_ACTIVE);
                     userClubRepository.save(activeUserClub);
 
                     existingDayClub.setClubCurrentPopulation(existingDayClub.getClubCurrentPopulation() + 1);
                     clubRepository.save(existingDayClub);
 
-                    activeJoinedDay = day; // ACTIVE 가입 성공!
-                    pendingDays.remove(day); // 남은 요일 리스트에서 제거
-                    resultUserClub = activeUserClub; // 반환할 엔티티를 Active 엔티티로 설정
+                    daysSuccessfullyJoined.add(day); // 성공한 요일 기록
+                    finalReturnEntry = activeUserClub; // 마지막으로 가입된 엔티티를 반환용으로 저장
                 }
             }
         }
 
-        // 3. 남은 요일에 대해 PENDING UserClub 생성 (TUESDAY 누락 방지 핵심)
+        // 3. PENDING Day 계산
+        List<DayOfWeek> pendingDays = selectedDays.stream()
+                .filter(day -> !daysSuccessfullyJoined.contains(day))
+                .collect(Collectors.toList());
+
+        // 4. 남은 요일에 대해 PENDING UserClub 생성
         if (!pendingDays.isEmpty()) {
-            // 원본 클럽 (ID 1)에 대한 PENDING 엔티티 생성
             UserClub pendingUserClub = new UserClub();
             pendingUserClub.addUser(user);
             pendingUserClub.addClub(originalClub);
             pendingUserClub.setNickname(postDto.getNickname());
-            pendingUserClub.setSelectedDays(pendingDays); // TUESDAY를 포함한 남은 요일 저장
+            pendingUserClub.setSelectedDays(pendingDays); // 남은 요일만 저장
             pendingUserClub.getUserClubStatuses().add(UserClub.UserClubStatus.USER_CLUB_STATUS_WAIT);
-
-            userClubRepository.save(pendingUserClub);
-
-            // Active 가입에 실패했다면, Pending 엔티티를 반환 엔티티로 설정
-            if (resultUserClub == null) {
-                resultUserClub = pendingUserClub;
-            }
+            finalReturnEntry = userClubRepository.save(pendingUserClub);
         }
 
-        // 4. ACTIVE 가입 성공 여부와 관계없이 항상 신규 클럽 생성 체크 로직 호출!
-        //    이 호출이 이루어져야 TUESDAY 클럽 생성을 검토할 수 있습니다.
-        checkAndCreateClubsByDay(originalClub.getClubId());
-
-        // 만약 Active/Pending 둘 다 실패했다면 (Active 클럽이 꽉 차고, 남은 요일이 없다면)
-        if (resultUserClub == null) {
-            // 이 경우는 로직상 발생하기 어렵지만, Active 클럽이 꽉 차고 남은 요일이 없으면 실패 처리 필요
-            throw new RuntimeException("Club join failed due to population limits.");
+        // 5. PENDING이 발생했거나 (새로운 클럽 생성을 유도해야 하므로) 체크 로직 호출
+        if (!pendingDays.isEmpty() || !daysSuccessfullyJoined.isEmpty()) {
+            checkAndCreateClubsByDay(originalClub.getClubId());
         }
 
-        return userClubMapper.entityToResponseDto(resultUserClub);
+        // 6. 최종 반환
+        if (finalReturnEntry == null) {
+            // 모든 신청 요일이 꽉 찬 클럽이었고 pending도 0인 경우에만 발생 (예외 처리 필요)
+            throw new BusinessLogicException(ExceptionCode.CLUB_POPULATION_FULL);
+        }
+
+        return userClubMapper.entityToResponseDto(finalReturnEntry);
     }
-// checkAndCreateClubsByDay 및 기타 메서드는 이전 버전(v2) 코드를 그대로 사용
 
     // --- checkAndCreateClubsByDay 및 관련 메서드 ---
     @Transactional
