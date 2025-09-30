@@ -15,7 +15,14 @@ public interface ClubRepository extends JpaRepository<Club, Long> {
 
     /**
      * 부모 클럽 이름, 활동 요일, 그리고 활성화 상태를 기준으로 클럽을 찾습니다.
+     * @return Optional<Club>
      */
     Optional<Club> findByParentClubNameAndActivityDayAndIsActive(String parentClubName, DayOfWeek activityDay, Boolean isActive);
+
+    /**
+     * 부모 클럽 이름과 활동 요일에 해당하는 활성화된 동호회의 수를 셉니다.
+     * @return long
+     */
+    long countByParentClubNameAndActivityDayAndIsActive(String parentClubName, DayOfWeek activityDay, Boolean isActive);
 
 }

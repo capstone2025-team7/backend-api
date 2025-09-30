@@ -21,6 +21,7 @@ import java.time.DayOfWeek;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -92,12 +93,8 @@ public class ClubService {
         clubRepository.deleteById(clubId);
     }
 
-    // --- joinClub 메서드 수정 시작 ---
-    // ClubService.java
-
     @Transactional
     public UserClubDto.Response joinClub(UserClubDto.Post postDto) {
-        // 1. 유효성 검사 (기존 로직 유지)
         if (userClubRepository.existsByUser_UserIdAndClub_ClubId(postDto.getUserId(), postDto.getClubId())) {
             throw new RuntimeException("Already applied to this club");
         }
@@ -106,56 +103,87 @@ public class ClubService {
         User user = userRepository.findById(postDto.getUserId())
                 .orElseThrow(() -> new BusinessLogicException(ExceptionCode.USER_NOT_FOUND));
 
-        // 2. 사용자가 선택한 요일에 해당하는 활성 클럽이 있는지 확인
         List<DayOfWeek> selectedDays = postDto.getSelectedDays().stream()
                 .map(this::convertStringToDayOfWeek)
                 .collect(Collectors.toList());
 
+        UserClub resultUserClub = null;
+        DayOfWeek activeJoinedDay = null; // 실제로 ACTIVE 가입에 성공한 요일
+
+        List<DayOfWeek> pendingDays = new ArrayList<>(selectedDays); // 남은 요일을 관리할 리스트
+
+        // 1. ACTIVE 클럽에 즉시 가입 가능한지 확인
         for (DayOfWeek day : selectedDays) {
-            // --- 이 부분이 수정되었습니다. ---
-            Club existingDayClub = clubRepository.findByParentClubNameAndActivityDayAndIsActive(
-                            originalClub.getClubName(), day, true)
-                    .orElse(null); // Optional에서 값을 추출하거나, 없으면 null을 반환
-            // --- 수정 끝 ---
+            if (activeJoinedDay != null) {
+                // 이미 한 곳에 가입했다면 더 이상 ACTIVE 가입 시도 안함
+                break;
+            }
 
-            if (existingDayClub != null) {
-                // 3. 이미 활성화된 클럽이 있으면, 그 클럽에 사용자를 바로 가입시킴
-                UserClub userClub = new UserClub();
-                userClub.setUser(user);
-                userClub.setClub(existingDayClub);
-                userClub.setNickname(postDto.getNickname());
-                userClub.setSelectedDays(selectedDays);
-                userClub.getUserClubStatuses().add(UserClub.UserClubStatus.USER_CLUB_STATUS_ACTIVE);
-                userClubRepository.save(userClub);
+            Optional<Club> optionalExistingDayClub = clubRepository.findByParentClubNameAndActivityDayAndIsActive(
+                    originalClub.getClubName(), day, true);
 
-                existingDayClub.setClubCurrentPopulation(existingDayClub.getClubCurrentPopulation() + 1);
-                clubRepository.save(existingDayClub);
+            if (optionalExistingDayClub.isPresent()) {
+                Club existingDayClub = optionalExistingDayClub.get();
 
-                return userClubMapper.entityToResponseDto(userClub);
+                if (existingDayClub.getClubCurrentPopulation() < existingDayClub.getClubTotalPopulation()) {
+
+                    // 2. Active UserClub 생성 (성공한 요일만 포함)
+                    UserClub activeUserClub = new UserClub();
+                    activeUserClub.setUser(user);
+                    activeUserClub.setClub(existingDayClub);
+                    activeUserClub.setNickname(postDto.getNickname());
+                    activeUserClub.setSelectedDays(List.of(day)); // 가입된 요일만 포함
+                    activeUserClub.getUserClubStatuses().add(UserClub.UserClubStatus.USER_CLUB_STATUS_ACTIVE);
+                    userClubRepository.save(activeUserClub);
+
+                    existingDayClub.setClubCurrentPopulation(existingDayClub.getClubCurrentPopulation() + 1);
+                    clubRepository.save(existingDayClub);
+
+                    activeJoinedDay = day; // ACTIVE 가입 성공!
+                    pendingDays.remove(day); // 남은 요일 리스트에서 제거
+                    resultUserClub = activeUserClub; // 반환할 엔티티를 Active 엔티티로 설정
+                }
             }
         }
 
-        // 4. 활성화된 클럽이 없으면, 가입 대기 상태로 원본 클럽에 저장
-        UserClub userClub = new UserClub();
-        userClub.addUser(user);
-        userClub.addClub(originalClub);
-        userClub.setNickname(postDto.getNickname());
-        userClub.setSelectedDays(selectedDays);
-        userClub.getUserClubStatuses().add(UserClub.UserClubStatus.USER_CLUB_STATUS_WAIT);
-        UserClub savedUserClub = userClubRepository.save(userClub);
+        // 3. 남은 요일에 대해 PENDING UserClub 생성 (TUESDAY 누락 방지 핵심)
+        if (!pendingDays.isEmpty()) {
+            // 원본 클럽 (ID 1)에 대한 PENDING 엔티티 생성
+            UserClub pendingUserClub = new UserClub();
+            pendingUserClub.addUser(user);
+            pendingUserClub.addClub(originalClub);
+            pendingUserClub.setNickname(postDto.getNickname());
+            pendingUserClub.setSelectedDays(pendingDays); // TUESDAY를 포함한 남은 요일 저장
+            pendingUserClub.getUserClubStatuses().add(UserClub.UserClubStatus.USER_CLUB_STATUS_WAIT);
 
-        // 5. 가입 신청 후 요일별 동호회 분할 생성 로직 호출
+            userClubRepository.save(pendingUserClub);
+
+            // Active 가입에 실패했다면, Pending 엔티티를 반환 엔티티로 설정
+            if (resultUserClub == null) {
+                resultUserClub = pendingUserClub;
+            }
+        }
+
+        // 4. ACTIVE 가입 성공 여부와 관계없이 항상 신규 클럽 생성 체크 로직 호출!
+        //    이 호출이 이루어져야 TUESDAY 클럽 생성을 검토할 수 있습니다.
         checkAndCreateClubsByDay(originalClub.getClubId());
 
-        return userClubMapper.entityToResponseDto(savedUserClub);
-    }
+        // 만약 Active/Pending 둘 다 실패했다면 (Active 클럽이 꽉 차고, 남은 요일이 없다면)
+        if (resultUserClub == null) {
+            // 이 경우는 로직상 발생하기 어렵지만, Active 클럽이 꽉 차고 남은 요일이 없으면 실패 처리 필요
+            throw new RuntimeException("Club join failed due to population limits.");
+        }
 
-    // --- checkAndCreateClubsByDay 및 관련 메서드 수정 시작 ---
+        return userClubMapper.entityToResponseDto(resultUserClub);
+    }
+// checkAndCreateClubsByDay 및 기타 메서드는 이전 버전(v2) 코드를 그대로 사용
+
+    // --- checkAndCreateClubsByDay 및 관련 메서드 ---
     @Transactional
     public void checkAndCreateClubsByDay(Long originalClubId) {
         Club originalClub = findVerifiedClub(originalClubId);
 
-        // 해당 클럽의 모든 대기자들 조회
+        // 해당 클럽의 모든 대기자들 조회 (WAIT 상태)
         List<UserClub> pendingMembers = userClubRepository.findByClub_ClubIdAndUserClubStatuses(
                 originalClubId, UserClub.UserClubStatus.USER_CLUB_STATUS_WAIT);
 
@@ -164,15 +192,18 @@ public class ClubService {
 
         // 각 요일 그룹이 최소인원을 만족하는지 확인 및 동호회 생성
         for (Map.Entry<DayOfWeek, List<UserClub>> entry : dayGroups.entrySet()) {
+            DayOfWeek day = entry.getKey();
             List<UserClub> dayMembers = entry.getValue();
 
-            // 최소 인원 만족 + 해당 요일의 클럽이 아직 생성되지 않았을 때
+            // 최소 인원 만족 확인
             if (dayMembers.size() >= originalClub.getMinUser()) {
-                // 새로운 요일별 동호회 생성
-                Club newDayClub = createDaySpecificClub(originalClub, entry.getKey());
 
-                // 해당 요일 멤버들을 새 클럽으로 이동
-                moveUsersToNewClub(dayMembers, newDayClub);
+                // 새로운 요일별 동호회 생성 (또는 분점 생성)
+                Club newDayClub = createDaySpecificClub(originalClub, day);
+
+                // 해당 요일 멤버들을 새 클럽으로 이동 및 원본 대기 정보 업데이트/삭제
+                // createdDay를 넘겨주어 해당 요일만 처리하도록 함.
+                moveUsersToNewClub(dayMembers, newDayClub, day);
             }
         }
     }
@@ -187,9 +218,16 @@ public class ClubService {
 
     @Transactional
     public Club createDaySpecificClub(Club originalClub, DayOfWeek dayOfWeek) {
+        // ClubRepository에 `countByParentClubNameAndActivityDayAndIsActive` 메서드가 필요합니다.
+        long existingCount = clubRepository.countByParentClubNameAndActivityDayAndIsActive(
+                originalClub.getClubName(), dayOfWeek, true
+        );
+
+        String newClubNameSuffix = (existingCount > 0) ? " " + (existingCount + 1) : "";
+
         Club dayClub = new Club();
         dayClub.setCategory(originalClub.getCategory());
-        dayClub.setClubName(originalClub.getClubName() + "(" + getDayName(dayOfWeek) + ")");
+        dayClub.setClubName(originalClub.getClubName() + newClubNameSuffix + "(" + getDayName(dayOfWeek) + ")");
         dayClub.setClubTotalPopulation(originalClub.getClubTotalPopulation());
         dayClub.setMinUser(originalClub.getMinUser());
         dayClub.setDescription(originalClub.getDescription());
@@ -202,18 +240,42 @@ public class ClubService {
     }
 
     @Transactional
-    public void moveUsersToNewClub(List<UserClub> users, Club newClub) {
-        for (UserClub userClub : users) {
-            // 기존 UserClub 엔티티의 club과 status 필드만 업데이트
-            userClub.setClub(newClub);
-            userClub.getUserClubStatuses().clear();
-            userClub.getUserClubStatuses().add(UserClub.UserClubStatus.USER_CLUB_STATUS_ACTIVE);
+    public void moveUsersToNewClub(List<UserClub> dayMembers, Club newClub, DayOfWeek createdDay) {
+        int movedCount = 0;
 
-            userClubRepository.save(userClub);
+        // Map을 사용하여 UserClubId를 기준으로 유니크한 원본 UserClub 엔티티만 처리합니다.
+        Map<Long, UserClub> uniqueUserClubs = dayMembers.stream()
+                .collect(Collectors.toMap(UserClub::getUserClubId, uc -> uc, (existing, replacement) -> existing));
+
+        for (UserClub originalUserClub : uniqueUserClubs.values()) {
+
+            // 1. 새 동호회(요일별/분점)에 대한 새로운 UserClub (Active) 엔티티 생성
+            UserClub activeUserClub = new UserClub();
+            activeUserClub.setUser(originalUserClub.getUser());
+            activeUserClub.setClub(newClub); // 새 동호회와 연결
+            activeUserClub.setNickname(originalUserClub.getNickname());
+
+            // 새 엔티티에는 성공적으로 가입된 요일만 포함
+            activeUserClub.setSelectedDays(List.of(createdDay));
+            activeUserClub.getUserClubStatuses().add(UserClub.UserClubStatus.USER_CLUB_STATUS_ACTIVE);
+            userClubRepository.save(activeUserClub);
+            movedCount++;
+
+            // 2. 기존 대기 엔티티 (originalUserClub) 업데이트
+            // 성공한 요일을 원본 대기 엔티티의 selectedDays에서 제거
+            originalUserClub.getSelectedDays().remove(createdDay);
+
+            if (originalUserClub.getSelectedDays().isEmpty()) {
+                // 더 이상 대기할 요일이 없으면 원본 UserClub (WAIT 상태) 삭제
+                userClubRepository.delete(originalUserClub);
+            } else {
+                // 남은 요일이 있으면 대기 상태 (WAIT)를 유지하고 업데이트
+                userClubRepository.save(originalUserClub);
+            }
         }
 
-        // 새 클럽의 현재 인원 수 설정
-        newClub.setClubCurrentPopulation(users.size());
+        // 새 클럽의 현재 인원 수 업데이트
+        newClub.setClubCurrentPopulation(newClub.getClubCurrentPopulation() + movedCount);
         clubRepository.save(newClub);
     }
     // --- checkAndCreateClubsByDay 및 관련 메서드 수정 끝 ---
@@ -230,9 +292,17 @@ public class ClubService {
 
     @Transactional
     public void removeUser(Long clubId, Long userClubId, Long requestUserId) {
+        // userClubId로 UserClub 엔티티를 찾습니다.
         UserClub userClub = userClubRepository.findById(userClubId)
-                .orElseThrow(() -> new RuntimeException("UserClub not found"));
+                .orElseThrow(() -> new BusinessLogicException(ExceptionCode.USER_CLUB_NOT_FOUND));
 
+        // 1. 요청한 사용자가 해당 UserClub의 소유자인지 확인
+        if (!userClub.getUser().getUserId().equals(requestUserId)) {
+            // 소유자가 아니면 권한 없음 예외 발생
+            throw new BusinessLogicException(ExceptionCode.UNAUTHORIZED_USER);
+        }
+
+        // 2. 권한이 확인되면 정상적으로 삭제 진행
         userClubRepository.delete(userClub);
 
         // 현재 인원 수 업데이트
