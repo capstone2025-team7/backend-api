@@ -40,6 +40,9 @@ public class User extends Auditable {
     @Column(name = "age", length = 100, nullable = false)
     private int age;
 
+    @Column(name = "location", length = 200, nullable = false)
+    private String location;
+
     @Enumerated(value = EnumType.STRING)
     @Column(name = "gender", length = 20, nullable = false)
     private gender gender;

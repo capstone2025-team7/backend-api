@@ -46,6 +46,10 @@ dependencies {
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.2.0'
 	implementation 'org.apache.commons:commons-lang3:3.18.0'
+
+	// 장소 웹 크롤링
+	implementation 'org.jsoup:jsoup:1.15.3'
+	implementation 'com.microsoft.playwright:playwright:1.44.0'
 }
 
 tasks.named('test') {

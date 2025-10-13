@@ -72,6 +72,7 @@ public class UserController {
     /**
      * 사용자의 가능 요일 조회
      */
+    @Operation(summary = "사용자 가능 요일 조회", description = "사용자의 가능한 요일을 검색합니다.")
     @GetMapping("/{userId}/available-days")
     public ResponseEntity<Map<String, Object>> getUserAvailableDays(@PathVariable Long userId) {
         List<String> availableDays = userService.getUserAvailableDays(userId);
@@ -87,6 +88,7 @@ public class UserController {
     /**
      * 사용자의 가능 요일 수정
      */
+    @Operation(summary = "사용자 가능 요일 수정", description = "사용자의 가능한 요일을 수정합니다.")
     @PutMapping("/{userId}/available-days")
     public ResponseEntity<String> updateUserAvailableDays(
             @PathVariable Long userId,
@@ -99,6 +101,7 @@ public class UserController {
     /**
      * 특정 요일에 가능한 사용자들 조회
      */
+    @Operation(summary = "특정 요일 가능 사용자들 조회", description = "특정 요일에 가능한 사용자들을 조회합니다.")
     @GetMapping("/available-on-days")
     public ResponseEntity<List<UserDto.UserResponse>> getUsersAvailableOnDays(
             @RequestParam List<String> days) {
@@ -119,6 +122,7 @@ public class UserController {
     /**
      * 사용자가 특정 요일에 가능한지 확인
      */
+    @Operation(summary = "특정 요일 가능 사용자 조회", description = "특정 요일에 가능한 사용자를 조회합니다.")
     @GetMapping("/{userId}/available-on/{day}")
     public ResponseEntity<Map<String, Boolean>> checkUserAvailableOnDay(
             @PathVariable Long userId,
