@@ -1,5 +1,6 @@
 package com.capstone2025.team7.backend.user.service;
 
+import com.capstone2025.team7.backend.auth.utils.CustomAuthorityUtils;
 import com.capstone2025.team7.backend.exception.BusinessLogicException;
 import com.capstone2025.team7.backend.exception.ExceptionCode;
 import com.capstone2025.team7.backend.user.dto.UserDto;
@@ -7,6 +8,7 @@ import com.capstone2025.team7.backend.user.entity.User;
 import com.capstone2025.team7.backend.user.entity.UserAvailableDay;
 import com.capstone2025.team7.backend.user.repository.UserAvailableDayRepository;
 import com.capstone2025.team7.backend.user.repository.UserRepository;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -21,29 +23,32 @@ import java.util.stream.Collectors;
 public class UserService {
     private final UserRepository userRepository;
     private final UserAvailableDayRepository availableDayRepository;
-
-
-    public User createUser(User user) {
-        userRepository.findByEmail(user.getEmail())
-                .ifPresent(m -> {
-                    throw new BusinessLogicException(ExceptionCode.USER_EXISTS);
-                });
-        return userRepository.save(user);
-    }
+    private final CustomAuthorityUtils authorityUtils;
+    private final PasswordEncoder passwordEncoder;
 
     /**
      * 사용자 생성과 함께 가능한 요일들 저장
      */
     public User createUserWithAvailableDays(UserDto.Post request) {
-        // 1. 사용자 먼저 저장
+        // 중복 체크
+        verifiedExistsUser(request.getEmail(), request.getNickname());
+
+        // 비밀번호 암호화
+        String encryptedPassword = passwordEncoder.encode(request.getPassword());
+
+        // 권한 부여
+        List<String> roles = authorityUtils.createRoles(request.getEmail());
+
         User user = new User();
         user.setName(request.getName());
         user.setNickname(request.getNickname());
-        user.setPassword(request.getPassword());
+        user.setPassword(encryptedPassword);
         user.setProfileImage(request.getProfileImage());
         user.setAge(request.getAge());
         user.setGender(request.getGender());
         user.setEmail(request.getEmail());
+        user.setRoles(roles);
+        user.setLocation(request.getLocation());
 
         User savedUser = userRepository.save(user);
 
@@ -56,24 +61,29 @@ public class UserService {
     }
 
     public User updateUser(User user) {
-        User findUser = findVerifiedUser(user.getUserId());
+        User findUser = findVerifiedUser(user.getEmail());
 
         Optional.ofNullable(user.getNickname())
                 .ifPresent(findUser::setNickname);
+
+        // 비밀번호 암호화
+        String encryptedPassword = passwordEncoder.encode(user.getPassword());
+
         Optional.ofNullable(user.getPassword())
-                .ifPresent(findUser::setPassword);
+                .ifPresent(password -> findUser.setPassword(encryptedPassword));
+
         Optional.ofNullable(user.getProfileImage())
                 .ifPresent(findUser::setProfileImage);
 
         return userRepository.save(findUser);
     }
 
-    public User findUser(long userId) {
-        return findVerifiedUser(userId);
+    public User findUser(String email) {
+        return findVerifiedUser(email);
     }
 
-    public void deleteUser(long userId) {
-        User findUser = findVerifiedUser(userId);
+    public void deleteUser(String email) {
+        User findUser = findVerifiedUser(email);
         userRepository.delete(findUser);
     }
 
@@ -83,15 +93,21 @@ public class UserService {
                 new BusinessLogicException(ExceptionCode.USER_NOT_FOUND));
     }
 
+    public User findVerifiedUser(String email) {
+        Optional<User> optionalUser = userRepository.findByEmail(email);
+        return optionalUser.orElseThrow(() ->
+                new BusinessLogicException(ExceptionCode.USER_NOT_FOUND));
+    }
+
     /**
      * 사용자의 가능한 요일들 업데이트
      */
-    public void updateUserAvailableDays(Long userId, List<String> availableDays) {
-        User user = userRepository.findById(userId)
+    public void updateUserAvailableDays(String email, List<String> availableDays) {
+        User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
 
         // 기존 가능 요일들 삭제
-        availableDayRepository.deleteByUserId(userId);
+        availableDayRepository.deleteByemail(email);
 
         // 새로운 가능 요일들 저장
         if (availableDays != null && !availableDays.isEmpty()) {
@@ -121,8 +137,8 @@ public class UserService {
      * 사용자의 가능한 요일들 조회
      */
     @Transactional(readOnly = true)
-    public List<String> getUserAvailableDays(Long userId) {
-        return availableDayRepository.findByUser_UserId(userId)
+    public List<String> getUserAvailableDays(String email) {
+        return availableDayRepository.findByUser_Email(email)
                 .stream()
                 .map(availableDay -> availableDay.getDayOfWeek().name())
                 .collect(Collectors.toList());
@@ -132,8 +148,8 @@ public class UserService {
      * 사용자의 가능한 요일들 조회 (한글명)
      */
     @Transactional(readOnly = true)
-    public List<String> getUserAvailableDaysInKorean(Long userId) {
-        return availableDayRepository.findByUser_UserId(userId)
+    public List<String> getUserAvailableDaysInKorean(String email) {
+        return availableDayRepository.findByUser_Email(email)
                 .stream()
                 .map(availableDay -> availableDay.getDayOfWeek().getKoreanName())
                 .collect(Collectors.toList());
@@ -163,4 +179,18 @@ public class UserService {
             return false;
         }
     }
+
+    private void verifiedExistsUser(String email, String nickname) {
+        Optional<User> findByEmail = userRepository.findByEmail(email);
+        if (findByEmail.isPresent()) {
+            throw new BusinessLogicException(ExceptionCode.USER_EXISTS);
+        }
+
+        Optional<User> findByNickname = userRepository.findByNickname(nickname);
+        if (findByNickname.isPresent()) {
+            throw new BusinessLogicException(ExceptionCode.NICKNAME_EXISTS);
+        }
+    }
+
+
 }
