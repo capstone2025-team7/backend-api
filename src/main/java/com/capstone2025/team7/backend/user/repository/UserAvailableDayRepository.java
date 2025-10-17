@@ -16,6 +16,8 @@ public interface UserAvailableDayRepository extends JpaRepository<UserAvailableD
     // 특정 사용자의 가능한 요일들 조회
     List<UserAvailableDay> findByUser_UserId(Long userId);
 
+    List<UserAvailableDay> findByUser_Email(String email);
+
     // 특정 사용자의 특정 요일 조회
     UserAvailableDay findByUser_UserIdAndDayOfWeek(Long userId, UserAvailableDay.DayOfWeek dayOfWeek);
 
@@ -26,6 +28,11 @@ public interface UserAvailableDayRepository extends JpaRepository<UserAvailableD
     @Modifying
     @Query("DELETE FROM UserAvailableDay uad WHERE uad.user.userId = :userId")
     void deleteByUserId(@Param("userId") Long userId);
+
+    // 특정 사용자의 가능한 요일들 삭제
+    @Modifying
+    @Query("DELETE FROM UserAvailableDay uad WHERE uad.user.email = :email")
+    void deleteByemail(@Param("email") String email);
 
     // 특정 사용자가 특정 요일에 가능한지 확인
     boolean existsByUser_UserIdAndDayOfWeek(Long userId, UserAvailableDay.DayOfWeek dayOfWeek);

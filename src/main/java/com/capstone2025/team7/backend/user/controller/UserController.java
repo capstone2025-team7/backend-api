@@ -1,5 +1,6 @@
 package com.capstone2025.team7.backend.user.controller;
 
+import com.capstone2025.team7.backend.auth.service.MemberDetailsService;
 import com.capstone2025.team7.backend.user.dto.UserDto;
 import com.capstone2025.team7.backend.user.entity.User;
 import com.capstone2025.team7.backend.user.mapper.UserMapper;
@@ -12,6 +13,7 @@ import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -32,14 +34,14 @@ public class UserController {
     private final UserService userService;
 
     @Operation(summary = "사용자 생성", description = "새로운 사용자를 생성합니다.")
-    @PostMapping
+    @PostMapping("/signup")
     public ResponseEntity createUser(@Valid @RequestBody UserDto.Post requestBody) {
         User user = userService.createUserWithAvailableDays(requestBody);
 
         URI location = UriCreator.createUri(USER_DEFAULT_URL, user.getUserId());
 
-        List<String> availableDays = userService.getUserAvailableDays(user.getUserId());
-        List<String> availableDaysKorean = userService.getUserAvailableDaysInKorean(user.getUserId());
+        List<String> availableDays = userService.getUserAvailableDays(user.getEmail());
+        List<String> availableDaysKorean = userService.getUserAvailableDaysInKorean(user.getEmail());
 
         UserDto.UserResponse response = UserDto.UserResponse.from(user, availableDays, availableDaysKorean);
 
@@ -47,25 +49,25 @@ public class UserController {
     }
 
     @Operation(summary = "사용자 정보 수정", description = "사용자 정보를 수정합니다.")
-    @PatchMapping("/{user-id}")
-    public ResponseEntity updateUser(@PathVariable("user-id") @Positive long userId, @Valid @RequestBody UserDto.Patch requestBody) {
-        requestBody.setUserId(userId);
+    @PatchMapping()
+    public ResponseEntity updateUser(@AuthenticationPrincipal MemberDetailsService.MemberDetail userDetail, @Valid @RequestBody UserDto.Patch requestBody) {
+        requestBody.setEmail(userDetail.getUsername());
         User user = userService.updateUser(userMapper.userPatchToUser(requestBody));
 
         return new ResponseEntity<>(userMapper.userToUserResponse(user), HttpStatus.OK);
     }
 
     @Operation(summary = "사용자 정보 조회", description = "사용자 정보를 조회합니다.")
-    @GetMapping("/{user-id}")
-    public ResponseEntity getUser(@PathVariable("user-id") @Positive long userId) {
-        User user = userService.findUser(userId);
+    @GetMapping()
+    public ResponseEntity getUser(@AuthenticationPrincipal MemberDetailsService.MemberDetail userDetail) {
+        User user = userService.findUser(userDetail.getUsername());
         return new ResponseEntity<>(userMapper.userToUserResponse(user), HttpStatus.OK);
     }
 
     @Operation(summary = "사용자 삭제", description = "사용자를 삭제합니다.")
-    @DeleteMapping("/{user-id}")
-    public ResponseEntity deleteUser(@PathVariable("user-id") @Positive long userId) {
-        userService.deleteUser(userId);
+    @DeleteMapping()
+    public ResponseEntity deleteUser(@AuthenticationPrincipal MemberDetailsService.MemberDetail userDetail) {
+        userService.deleteUser(userDetail.getUsername());
         return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }
 
@@ -73,10 +75,10 @@ public class UserController {
      * 사용자의 가능 요일 조회
      */
     @Operation(summary = "사용자 가능 요일 조회", description = "사용자의 가능한 요일을 검색합니다.")
-    @GetMapping("/{userId}/available-days")
-    public ResponseEntity<Map<String, Object>> getUserAvailableDays(@PathVariable Long userId) {
-        List<String> availableDays = userService.getUserAvailableDays(userId);
-        List<String> availableDaysKorean = userService.getUserAvailableDaysInKorean(userId);
+    @GetMapping("/available-days")
+    public ResponseEntity<Map<String, Object>> getUserAvailableDays(@AuthenticationPrincipal MemberDetailsService.MemberDetail userDetail) {
+        List<String> availableDays = userService.getUserAvailableDays(userDetail.getUsername());
+        List<String> availableDaysKorean = userService.getUserAvailableDaysInKorean(userDetail.getUsername());
 
         Map<String, Object> response = new HashMap<>();
         response.put("availableDays", availableDays);
@@ -89,12 +91,12 @@ public class UserController {
      * 사용자의 가능 요일 수정
      */
     @Operation(summary = "사용자 가능 요일 수정", description = "사용자의 가능한 요일을 수정합니다.")
-    @PutMapping("/{userId}/available-days")
+    @PutMapping("/available-days")
     public ResponseEntity<String> updateUserAvailableDays(
-            @PathVariable Long userId,
+            @AuthenticationPrincipal MemberDetailsService.MemberDetail userDetail,
             @RequestBody UserDto.AvailableDaysUpdateRequest request) {
 
-        userService.updateUserAvailableDays(userId, request.getAvailableDays());
+        userService.updateUserAvailableDays(userDetail.getUsername(), request.getAvailableDays());
         return ResponseEntity.ok("가능 요일이 성공적으로 업데이트되었습니다.");
     }
 
@@ -110,8 +112,8 @@ public class UserController {
 
         List<UserDto.UserResponse> responses = users.stream()
                 .map(user -> {
-                    List<String> availableDays = userService.getUserAvailableDays(user.getUserId());
-                    List<String> availableDaysKorean = userService.getUserAvailableDaysInKorean(user.getUserId());
+                    List<String> availableDays = userService.getUserAvailableDays(user.getEmail());
+                    List<String> availableDaysKorean = userService.getUserAvailableDaysInKorean(user.getEmail());
                     return UserDto.UserResponse.from(user, availableDays, availableDaysKorean);
                 })
                 .collect(Collectors.toList());

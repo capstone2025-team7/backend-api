@@ -47,9 +47,8 @@ public class User extends Auditable {
     @Column(name = "gender", length = 20, nullable = false)
     private gender gender;
 
-    @Enumerated(value = EnumType.STRING)
-    @Column(name = "role", length = 20, nullable = false)
-    private userRole role = userRole.MEMBER;
+    @ElementCollection(fetch = FetchType.EAGER)
+    private List<String> roles = new ArrayList<>();
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.PERSIST)
     List<UserClub> userClubList = new ArrayList<>();
@@ -79,18 +78,6 @@ public class User extends Auditable {
         private final String value;
 
         gender(String value) {
-            this.value = value;
-        }
-    }
-
-    @Getter
-    public enum userRole {
-        ADMIN("관리자"),
-        MEMBER("유저");
-
-        private final String value;
-
-        userRole(String value) {
             this.value = value;
         }
     }

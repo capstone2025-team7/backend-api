@@ -61,7 +61,7 @@ public class UserDto {
     @Setter
     @NoArgsConstructor
     public static class Patch {
-        private long userId;
+        private String email;
 
         @Pattern(regexp = "^[a-zA-Z0-9가-힣]{2,8}$",
                 message = "특수문자 제외 2자이상 8자 이하로 입력해주세요.")
@@ -95,7 +95,7 @@ public class UserDto {
         private String profileImage;
         private int age;
         private User.gender gender;
-        private User.userRole role;
+        private List<String> roles;
         private List<String> availableDays;
         private List<String> availableDaysKorean;
         private String location;
@@ -109,7 +109,7 @@ public class UserDto {
             response.setProfileImage(user.getProfileImage());
             response.setAge(user.getAge());
             response.setGender(user.getGender());
-            response.setRole(user.getRole());
+            response.setRoles(user.getRoles());
             response.setAvailableDays(availableDays);
             response.setAvailableDaysKorean(availableDaysKorean);
             response.setLocation(user.getLocation());
