@@ -91,7 +91,17 @@ public class ClubController {
         UserClubDto.Response response = clubService.joinClub(postDto);
         return ResponseEntity.ok(response);
     }
+    @DeleteMapping("/{clubId}/users/{userClubId}")
+    @Operation(summary = "동호회 멤버 제거 또는 가입 신청 취소/탈퇴",
+            description = "userClubId를 통해 특정 동호회 가입 기록을 삭제(탈퇴/취소)합니다. 헤더의 User-Id는 요청자의 권한 확인 및 본인 여부 확인에 사용됩니다.")
+    public ResponseEntity<Void> removeUser(
+            @PathVariable Long clubId,
+            @PathVariable Long userClubId,
+            @RequestHeader("User-Id") Long requestUserId) {
 
+        clubService.withdrawClub(clubId, userClubId, requestUserId); // 메서드 이름을 명확히 변경
+        return ResponseEntity.noContent().build();
+    }
     /**
      * 동호회 멤버 목록 조회
      */
@@ -107,7 +117,7 @@ public class ClubController {
      */
     @DeleteMapping("/{clubId}/users/{userClubId}")
     @Operation(summary = "멤버 제거/탈퇴")
-    public ResponseEntity<Void> removeUser(
+    public ResponseEntity<Void> removeUserClub(
             @PathVariable Long clubId,
             @PathVariable Long userClubId,
             @RequestHeader("User-Id") Long requestUserId) {

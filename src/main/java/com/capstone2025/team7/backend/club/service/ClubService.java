@@ -172,6 +172,48 @@ public class ClubService {
         return userClubMapper.entityToResponseDto(finalReturnEntry);
     }
 
+    // ClubService.java 내부에 추가/수정될 메서드
+
+    @Transactional
+    public void withdrawClub(Long clubId, Long userClubId, Long requestUserId) {
+        // 1. UserClub 엔티티 유효성 검사 및 권한 확인
+        UserClub userClub = userClubRepository.findById(userClubId)
+                .orElseThrow(() -> new BusinessLogicException(ExceptionCode.USER_CLUB_NOT_FOUND));
+
+        // 클럽ID 일치 여부 확인
+        if (!userClub.getClub().getClubId().equals(clubId)) {
+            throw new BusinessLogicException(ExceptionCode.CLUB_MISMATCH);
+        }
+
+        // [권한 로직]: 요청자가 해당 UserClub의 주인인지 확인 (자가 탈퇴/취소 시나리오)
+        if (!userClub.getUser().getUserId().equals(requestUserId)) {
+            // 관리자 권한 확인 로직이 없다면, 본인만 취소/탈퇴 가능
+            throw new BusinessLogicException(ExceptionCode.NO_PERMISSION);
+        }
+
+        // 2. 상태 확인 및 인원수 감소 처리 (ACTIVE 상태일 경우에만 인원 감소 = 탈퇴)
+        if (userClub.getUserClubStatuses().contains(UserClub.UserClubStatus.USER_CLUB_STATUS_ACTIVE)) {
+            // 🚩 활성 동호회 탈퇴 (인원수 감소) 로직
+            Club club = userClub.getClub();
+
+            // 인원수가 1 이상인 경우에만 감소 (0 미만이 되는 것을 방지)
+            if (club.getClubCurrentPopulation() > 0) {
+                club.setClubCurrentPopulation(club.getClubCurrentPopulation() - 1);
+                clubRepository.save(club);
+            }
+        } else if (userClub.getUserClubStatuses().contains(UserClub.UserClubStatus.USER_CLUB_STATUS_WAIT)) {
+            // 🚩 가입 신청 취소 (대기열에서 이탈) 로직: 인원수 감소 없음
+            // 추가적인 비즈니스 로직 없이 바로 삭제합니다.
+        }
+
+        // 3. UserClub 엔티티 삭제 (Hard Delete)
+        userClubRepository.delete(userClub);
+
+        // TODO: (선택 사항) 만약 userClubStatus를 WITHDRAWN 등으로 변경하는 Soft Delete를 원하시면 로직 변경 필요.
+    }
+
+
+
     // --- checkAndCreateClubsByDay 및 관련 메서드 ---
     @Transactional
     public void checkAndCreateClubsByDay(Long originalClubId) {
