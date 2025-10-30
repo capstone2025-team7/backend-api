@@ -51,4 +51,13 @@ public interface UserClubRepository extends JpaRepository<UserClub, Long> {
      * 특정 동호회에서 특정 상태를 가진 모든 사용자 목록 조회
      */
     List<UserClub> findByClub_ClubIdAndUserClubStatuses(Long clubId, UserClubStatus userClubStatus);
+
+    /**
+     * 특정 사용자가 특정 클럽에서 특정 상태(Status)의 기록을 가지고 있는지 확인합니다.
+     */
+    boolean existsByUser_UserIdAndClub_ClubIdAndUserClubStatuses(
+            Long userId,
+            Long clubId,
+            UserClubStatus status
+    );
 }

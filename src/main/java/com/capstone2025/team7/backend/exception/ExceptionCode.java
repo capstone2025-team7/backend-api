@@ -16,6 +16,7 @@ public enum ExceptionCode {
     INVALID_DATE_RANGE(409, "잘못된 값입니다."),
     NO_PERMISSION(409, "접근 권한이 없습니다."),
     CLUB_MISMATCH(409, "동호회를 잘못 매칭하셨습니다"),
+    NO_PERMISSION_ACCESS_CLUB_MEMBERS(409, "동호회 회원에 접근할 수 없습니다."),
     NICKNAME_EXISTS(409, "이미 존재하는 닉네임 입니다");
 
     @Getter

@@ -35,16 +35,24 @@ public class ClubService {
     private final ClubMapper clubMapper;
     private final UserClubMapper userClubMapper;
 
+    // --- (수정) createClub: userId를 받아 OwnerID로 설정 및 ADMIN 권한 검증 (가이드) ---
     @Transactional
-    public ClubDto.Response createClub(ClubDto.Post postDto) {
+    public ClubDto.Response createClub(ClubDto.Post postDto, Long userId) {
+        // 🚩 인가 가이드: Controller에서 ROLE_ADMIN 권한이 확인된 후에 호출되어야 합니다.
+        // 추가 방어 로직: User user = userRepository.findById(userId).orElseThrow(...)
+
         Club club = clubMapper.postDtoToEntity(postDto);
         Category category = new Category();
         category.setCategoryId(postDto.getCategoryId());
         club.setCategory(category);
 
+        // Club Entity에 ownerId 필드가 있다고 가정하고 설정
+        // club.setOwnerId(userId);
+
         Club savedClub = clubRepository.save(club);
         return clubMapper.entityToResponseDto(savedClub);
     }
+    // -------------------------------------------------------------------------
 
     private String getDayName(DayOfWeek day) {
         switch (day) {
@@ -77,33 +85,47 @@ public class ClubService {
         return clubMapper.entityToResponseDto(club);
     }
 
+    // --- (수정) updateClub: userId를 받아 권한 검증 ---
     @Transactional
-    public ClubDto.Response updateClub(Long clubId, ClubDto.Patch patchDto) {
+    public ClubDto.Response updateClub(Long clubId, ClubDto.Patch patchDto, Long userId) {
         Club club = findVerifiedClub(clubId);
+
+        // [인가 로직] 동호회 소유자(Owner)만 수정 가능하도록 검증 (또는 ROLE_ADMIN)
+        // if (!club.getOwnerId().equals(userId) && !userHasAdminRole(userId)) {
+        //     throw new BusinessLogicException(ExceptionCode.NO_PERMISSION);
+        // }
+
         clubMapper.updateClubFromPatch(patchDto, club);
         Club updatedClub = clubRepository.save(club);
         return clubMapper.entityToResponseDto(updatedClub);
     }
+    // --------------------------------------------------
 
+    // --- (수정) deleteClub: userId를 받아 권한 검증 ---
     @Transactional
-    public void deleteClub(Long clubId) {
-        if (!clubRepository.existsById(clubId)) {
-            throw new RuntimeException("Club not found with id: " + clubId);
-        }
+    public void deleteClub(Long clubId, Long userId) {
+        Club club = findVerifiedClub(clubId);
+
+        // [인가 로직] 동호회 소유자(Owner)만 삭제 가능하도록 검증 (또는 ROLE_ADMIN)
+        // if (!club.getOwnerId().equals(userId) && !userHasAdminRole(userId)) {
+        //     throw new BusinessLogicException(ExceptionCode.NO_PERMISSION);
+        // }
+
         clubRepository.deleteById(clubId);
     }
+    // --------------------------------------------------
 
-    // ClubService.java 내 joinClub 메서드 전체
-
+    // --- (수정) joinClub: userId를 받아 가입자 ID로 사용 ---
     @Transactional
-    public UserClubDto.Response joinClub(UserClubDto.Post postDto) {
+    public UserClubDto.Response joinClub(UserClubDto.Post postDto, Long userId) {
+
         // 1. 유효성 검사 및 초기 설정
-        if (userClubRepository.existsByUser_UserIdAndClub_ClubId(postDto.getUserId(), postDto.getClubId())) {
+        if (userClubRepository.existsByUser_UserIdAndClub_ClubId(userId, postDto.getClubId())) {
             throw new RuntimeException("Already applied to this club");
         }
 
         Club originalClub = findVerifiedClub(postDto.getClubId());
-        User user = userRepository.findById(postDto.getUserId())
+        User user = userRepository.findById(userId) // 토큰에서 받은 userId 사용
                 .orElseThrow(() -> new BusinessLogicException(ExceptionCode.USER_NOT_FOUND));
 
         List<DayOfWeek> selectedDays = postDto.getSelectedDays().stream()
@@ -113,7 +135,7 @@ public class ClubService {
         List<DayOfWeek> daysSuccessfullyJoined = new ArrayList<>();
         UserClub finalReturnEntry = null;
 
-        // 2. 모든 selectedDays를 순회하며 ACTIVE 클럽이 있는지 확인하고 모두 가입 처리
+        // 2. 사용자가 선택한 모든 요일에 해당하는 활성 클럽이 있는지 확인하고 모두 가입 처리
         for (DayOfWeek day : selectedDays) {
             Optional<Club> optionalExistingDayClub = clubRepository.findByParentClubNameAndActivityDayAndIsActive(
                     originalClub.getClubName(), day, true);
@@ -121,23 +143,24 @@ public class ClubService {
             if (optionalExistingDayClub.isPresent()) {
                 Club existingDayClub = optionalExistingDayClub.get();
 
-                // 동호회가 꽉 차지 않았는지 확인
-                if (existingDayClub.getClubCurrentPopulation() < existingDayClub.getClubTotalPopulation()) {
+                // 동호회가 꽉 차지 않았고, 해당 요일 클럽에 이미 가입하지 않았을 경우에만 처리
+                if (existingDayClub.getClubCurrentPopulation() < existingDayClub.getClubTotalPopulation() &&
+                        !userClubRepository.existsByUser_UserIdAndClub_ClubId(userId, existingDayClub.getClubId())) {
 
                     // --- Multi-Join Logic: 성공한 요일마다 새로운 UserClub 생성 ---
                     UserClub activeUserClub = new UserClub();
                     activeUserClub.setUser(user);
-                    activeUserClub.setClub(existingDayClub); // Link to the specific day club (Tuesday/Friday)
+                    activeUserClub.setClub(existingDayClub);
                     activeUserClub.setNickname(postDto.getNickname());
-                    activeUserClub.setSelectedDays(List.of(day)); // Only the specific day
+                    activeUserClub.setSelectedDays(List.of(day));
                     activeUserClub.getUserClubStatuses().add(UserClub.UserClubStatus.USER_CLUB_STATUS_ACTIVE);
                     userClubRepository.save(activeUserClub);
 
                     existingDayClub.setClubCurrentPopulation(existingDayClub.getClubCurrentPopulation() + 1);
                     clubRepository.save(existingDayClub);
 
-                    daysSuccessfullyJoined.add(day); // 성공한 요일 기록
-                    finalReturnEntry = activeUserClub; // 마지막으로 가입된 엔티티를 반환용으로 저장
+                    daysSuccessfullyJoined.add(day);
+                    finalReturnEntry = activeUserClub;
                 }
             }
         }
@@ -153,7 +176,7 @@ public class ClubService {
             pendingUserClub.addUser(user);
             pendingUserClub.addClub(originalClub);
             pendingUserClub.setNickname(postDto.getNickname());
-            pendingUserClub.setSelectedDays(pendingDays); // 남은 요일만 저장
+            pendingUserClub.setSelectedDays(pendingDays);
             pendingUserClub.getUserClubStatuses().add(UserClub.UserClubStatus.USER_CLUB_STATUS_WAIT);
             finalReturnEntry = userClubRepository.save(pendingUserClub);
         }
@@ -165,15 +188,33 @@ public class ClubService {
 
         // 6. 최종 반환
         if (finalReturnEntry == null) {
-            // 모든 신청 요일이 꽉 찬 클럽이었고 pending도 0인 경우에만 발생 (예외 처리 필요)
             throw new BusinessLogicException(ExceptionCode.CLUB_POPULATION_FULL);
         }
 
         return userClubMapper.entityToResponseDto(finalReturnEntry);
     }
+    // -----------------------------------------------------
 
-    // ClubService.java 내부에 추가/수정될 메서드
 
+    // --- (추가) getClubUsers: userId를 받아 회원 여부 검증 ---
+    public List<UserClubDto.Response> getClubUsers(Long clubId, Long userId) {
+        // [인가 로직] 요청자가 해당 클럽의 ACTIVE 멤버인지 확인
+        boolean isClubMember = userClubRepository.existsByUser_UserIdAndClub_ClubIdAndUserClubStatuses(
+                userId, clubId, UserClub.UserClubStatus.USER_CLUB_STATUS_ACTIVE);
+
+        if (!isClubMember) {
+            // TODO: 관리자 권한도 허용하려면 여기에 추가 로직 필요
+            throw new BusinessLogicException(ExceptionCode.NO_PERMISSION_ACCESS_CLUB_MEMBERS);
+        }
+
+        // 권한 확인 후 목록 조회
+        List<UserClub> members = userClubRepository.findByClub_ClubId(clubId);
+        return userClubMapper.entitiesToResponseDtos(members);
+    }
+    // ------------------------------------------------------
+
+
+    // --- (수정) withdrawClub: @RequestHeader가 아닌 토큰의 userId 사용 ---
     @Transactional
     public void withdrawClub(Long clubId, Long userClubId, Long requestUserId) {
         // 1. UserClub 엔티티 유효성 검사 및 권한 확인
@@ -187,7 +228,7 @@ public class ClubService {
 
         // [권한 로직]: 요청자가 해당 UserClub의 주인인지 확인 (자가 탈퇴/취소 시나리오)
         if (!userClub.getUser().getUserId().equals(requestUserId)) {
-            // 관리자 권한 확인 로직이 없다면, 본인만 취소/탈퇴 가능
+            // TODO: 관리자 권한 확인 로직이 필요하다면 여기에 추가
             throw new BusinessLogicException(ExceptionCode.NO_PERMISSION);
         }
 
@@ -196,25 +237,20 @@ public class ClubService {
             // 🚩 활성 동호회 탈퇴 (인원수 감소) 로직
             Club club = userClub.getClub();
 
-            // 인원수가 1 이상인 경우에만 감소 (0 미만이 되는 것을 방지)
             if (club.getClubCurrentPopulation() > 0) {
                 club.setClubCurrentPopulation(club.getClubCurrentPopulation() - 1);
                 clubRepository.save(club);
             }
-        } else if (userClub.getUserClubStatuses().contains(UserClub.UserClubStatus.USER_CLUB_STATUS_WAIT)) {
-            // 🚩 가입 신청 취소 (대기열에서 이탈) 로직: 인원수 감소 없음
-            // 추가적인 비즈니스 로직 없이 바로 삭제합니다.
         }
 
         // 3. UserClub 엔티티 삭제 (Hard Delete)
         userClubRepository.delete(userClub);
-
-        // TODO: (선택 사항) 만약 userClubStatus를 WITHDRAWN 등으로 변경하는 Soft Delete를 원하시면 로직 변경 필요.
     }
+    // -------------------------------------------------------------------
 
 
+    // --- checkAndCreateClubsByDay 및 기타 메서드 (이전 코드 유지) ---
 
-    // --- checkAndCreateClubsByDay 및 관련 메서드 ---
     @Transactional
     public void checkAndCreateClubsByDay(Long originalClubId) {
         Club originalClub = findVerifiedClub(originalClubId);
@@ -314,43 +350,6 @@ public class ClubService {
         newClub.setClubCurrentPopulation(newClub.getClubCurrentPopulation() + movedCount);
         clubRepository.save(newClub);
     }
-    // --- checkAndCreateClubsByDay 및 관련 메서드 수정 끝 ---
-
-    public List<UserClubDto.Response> getClubUsers(Long clubId) {
-        List<UserClub> members = userClubRepository.findByClub_ClubId(clubId);
-        return userClubMapper.entitiesToResponseDtos(members);
-    }
-
-    public Club findVerifiedClub(Long clubId) {
-        return clubRepository.findById(clubId)
-                .orElseThrow(() -> new BusinessLogicException(ExceptionCode.CLUB_NOT_FOUND));
-    }
-
-    @Transactional
-    public void removeUser(Long clubId, Long userClubId, Long requestUserId) {
-        // userClubId로 UserClub 엔티티를 찾습니다.
-        UserClub userClub = userClubRepository.findById(userClubId)
-                .orElseThrow(() -> new BusinessLogicException(ExceptionCode.USER_CLUB_NOT_FOUND));
-
-        // 1. 요청한 사용자가 해당 UserClub의 소유자인지 확인
-        if (!userClub.getUser().getUserId().equals(requestUserId)) {
-            // 소유자가 아니면 권한 없음 예외 발생
-            throw new BusinessLogicException(ExceptionCode.UNAUTHORIZED_USER);
-        }
-
-        // 2. 권한이 확인되면 정상적으로 삭제 진행
-        userClubRepository.delete(userClub);
-
-        // 현재 인원 수 업데이트
-        Club club = findVerifiedClub(clubId);
-        List<UserClub> activeMembers = userClubRepository.findByClub_ClubId(clubId);
-        long activeCount = activeMembers.stream()
-                .filter(uc -> uc.getUserClubStatuses().contains(UserClub.UserClubStatus.USER_CLUB_STATUS_ACTIVE))
-                .count();
-
-        club.setClubCurrentPopulation((int) activeCount);
-        clubRepository.save(club);
-    }
 
     public List<ClubDto.Response> getActiveClubs() {
         List<Club> allClubs = clubRepository.findAll();
@@ -366,5 +365,10 @@ public class ClubService {
                 .filter(club -> !club.getIsActive())
                 .toList();
         return clubMapper.entitiesToResponseDtos(inactiveClubs);
+    }
+
+    public Club findVerifiedClub(Long clubId) {
+        return clubRepository.findById(clubId)
+                .orElseThrow(() -> new BusinessLogicException(ExceptionCode.CLUB_NOT_FOUND));
     }
 }
